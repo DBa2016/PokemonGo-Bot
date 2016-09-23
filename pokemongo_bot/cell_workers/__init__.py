@@ -5,6 +5,7 @@ from .evolve_pokemon import EvolvePokemon
 from .incubate_eggs import IncubateEggs
 from .move_to_fort import MoveToFort
 from .move_to_map_pokemon import MoveToMapPokemon
+from .sniper import Sniper
 from .nickname_pokemon import NicknamePokemon
 from .pokemon_catch_worker import PokemonCatchWorker
 from .pokemon_hunter import PokemonHunter
@@ -29,3 +30,4 @@ from .telegram_task import TelegramTask
 from .use_incense import UseIncense
 from .camp_fort import CampFort
 from .discord_task import DiscordTask
+from .buddy_pokemon import BuddyPokemon
