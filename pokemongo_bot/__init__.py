@@ -158,9 +158,7 @@ class PokemonGoBot(object):
         debug = self.config.debug
 
         handlers.append(LoggingHandler(color, debug))
-
-        if self.config.enable_social:
-            handlers.append(SocialHandler(self))
+        handlers.append(SocialHandler(self))
 
         if self.config.websocket_server_url:
             if self.config.websocket_start_embedded_server:
@@ -213,6 +211,9 @@ class PokemonGoBot(object):
         self.event_manager.register_event('moving_to_destination')
         self.event_manager.register_event('arrived_at_destination')
         self.event_manager.register_event('staying_at_destination')
+        self.event_manager.register_event('buddy_pokemon', parameters=('pokemon', 'iv', 'cp'))
+        self.event_manager.register_event('buddy_reward', parameters=('pokemon', 'family', 'candy_earned', 'candy'))
+        self.event_manager.register_event('buddy_walked', parameters=('pokemon', 'distance_walked', 'distance_needed'))
 
         #  ignore candy above threshold
         self.event_manager.register_event(
@@ -688,6 +689,34 @@ class PokemonGoBot(object):
             'use_incense',
             parameters=('type', 'incense_count')
         )
+        # BuddyPokemon
+        self.event_manager.register_event(
+            'buddy_update',
+            parameters=('name')
+        )
+        self.event_manager.register_event(
+            'buddy_update_fail',
+            parameters=('name', 'error')
+        )
+        self.event_manager.register_event(
+            'buddy_candy_earned',
+            parameters=('candy', 'family', 'quantity', 'candy_earned', 'candy_limit')
+        )
+        self.event_manager.register_event('buddy_candy_fail')
+        self.event_manager.register_event(
+            'buddy_next_reward',
+            parameters=('name', 'km_walked', 'km_total')
+        )
+        self.event_manager.register_event('buddy_keep_active')
+        self.event_manager.register_event(
+            'buddy_not_available',
+            parameters=('name')
+        )
+
+        # Sniper
+        self.event_manager.register_event('sniper_log', parameters=('message', 'message'))
+        self.event_manager.register_event('sniper_error', parameters=('message', 'message'))
+        self.event_manager.register_event('sniper_teleporting', parameters=('latitude', 'longitude', 'name'))
 
     def tick(self):
         self.health_record.heartbeat()
@@ -1255,7 +1284,7 @@ class PokemonGoBot(object):
         # Check if the given location is already a coordinate.
         if ',' in location_name:
             possible_coordinates = re.findall(
-                "[-]?\d{1,3}[.]\d{3,7}", location_name
+                "[-]?\d{1,3}(?:[.]\d+)?", location_name
             )
             if len(possible_coordinates) >= 2:
                 # 2 matches, this must be a coordinate. We'll bypass the Google
