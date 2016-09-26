@@ -23,29 +23,40 @@ class SniperSource(object):
         self.enabled = data.get('enabled', False)
         self.time_mask = data.get('time_mask', '%Y-%m-%d %H:%M:%S')
         self.mappings = SniperSourceMapping(data.get('mappings', {}))
+        self.timeout = data.get('timeout', 5)
 
     def __str__(self):
         return self.url
 
-    def fetch_raw(self, timeoutz):
+    def fetch_raw(self):
         some_agent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/52.0.2743.116 Safari/537.36'
-        response = requests.get(self.url, headers={'User-Agent': some_agent}, timeout=timeoutz)
+        response = requests.get(self.url, headers={'User-Agent': some_agent}, timeout=self.timeout)
         results = response.json()
 
         # If the results is a dict, retrieve the list from it by the given key. This will return a list afterall.
-        return results.get(self.key, []) if isinstance(results, dict) else results
+        if isinstance(results, dict): 
+            results = results.get(self.key, []) 
+            
+        # If results is STILL a dict (eg. each pokemon is its own dict), need to build data from nested json (example whereispokemon.net)
+        while isinstance(results,dict):
+            tmpResults = []
+            for key, value in results.iteritems(): 
+                tmpResults.append(value)
+                results = tmpResults
+                
+        return results
 
-    def fetch(self, timeout):
+    def fetch(self):
         pokemons = []
 
         try:
-            results = self.fetch_raw(timeout)
+            results = self.fetch_raw()
 
             # Parse results
             for result in results:
                 iv = result.get(self.mappings.iv.param)
                 id = result.get(self.mappings.id.param)
-                name = result.get(self.mappings.name.param)
+                name = self._fixname(result.get(self.mappings.name.param))
                 latitude = result.get(self.mappings.latitude.param)
                 longitude = result.get(self.mappings.longitude.param)
                 expiration = result.get(self.mappings.expiration.param)
@@ -105,8 +116,8 @@ class SniperSource(object):
         try:
             if self.enabled:
                 errors = []
-                data = self.fetch_raw(10)
-
+                data = self.fetch_raw()
+                
                 # Check whether the params really exist if they have been specified like so
                 if data:
                     if self.mappings.iv.exists and self.mappings.iv.param not in data[0]:
@@ -139,6 +150,12 @@ class SniperSource(object):
             raise ValueError("Source not available")
         except:
             raise
+            
+    def _fixname(self,name):
+        name = name.replace("mr-mime","mr. mime")
+        name = name.replace("farfetchd","farfetch'd")
+        return name
+
 
 # Represents the JSON params mappings
 class SniperSourceMapping(object):
@@ -355,7 +372,15 @@ class Sniper(BaseTask):
         # Do nothing if this task was invalidated
         if self.disabled:
             self._error("Sniper was disabled for some reason. Scroll up to find out.")
+            
+        elif self.bot.catch_disabled:
+            if not hasattr(self.bot,"sniper_disabled_global_warning") or \
+                        (hasattr(self.bot,"sniper_disabled_global_warning") and not self.bot.sniper_disabled_global_warning):
+                self._log("All catching tasks are currently disabled until {}. Sniper will resume when catching tasks are re-enabled".format(self.bot.catch_resume_at.strftime("%H:%M:%S")))
+            self.bot.sniper_disabled_global_warning = True
+            
         else:
+            self.bot.sniper_disabled_global_warning = False
             targets = []
 
             # Retrieve the targets
@@ -424,7 +449,7 @@ class Sniper(BaseTask):
             for source in self.sources:
                 try:
                     if source.enabled:
-                        source_pokemons = source.fetch(3)
+                        source_pokemons = source.fetch()
                         self._trace("Source '{}' returned {} results".format(source.url, len(source_pokemons)))
 
                         # Merge lists, making sure to exclude repeated data. Use location as the hash key
