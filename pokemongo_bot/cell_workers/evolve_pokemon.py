@@ -1,4 +1,3 @@
-from random import uniform
 
 from pokemongo_bot import inventory
 from pokemongo_bot.human_behaviour import sleep, action_delay
@@ -18,7 +17,8 @@ class EvolvePokemon(BaseTask):
 
     def initialize(self):
         self.start_time = 0
-        self.api = self.bot.api
+        self.next_log_update = 0
+        self.log_interval = self.config.get('log_interval', 120)
         self.evolve_list = self.config.get('evolve_list', [])
         self.donot_evolve_list = self.config.get('donot_evolve_list', [])
         self.min_evolve_speed = self.config.get('min_evolve_speed', 25)
@@ -43,7 +43,7 @@ class EvolvePokemon(BaseTask):
     def _validate_config(self):
         if isinstance(self.evolve_list, basestring):
             self.evolve_list = [str(pokemon_name).lower().strip() for pokemon_name in self.evolve_list.split(',')]
-            
+
         if isinstance(self.donot_evolve_list, basestring):
             self.donot_evolve_list = [str(pokemon_name).lower().strip() for pokemon_name in self.donot_evolve_list.split(',')]
 
@@ -67,7 +67,10 @@ class EvolvePokemon(BaseTask):
                 candy = inventory.candies().get(pokemon.pokemon_id)
                 pokemon_to_be_evolved = pokemon_to_be_evolved + min(candy.quantity / (pokemon.evolution_cost - 1), filtered_dict[pokemon.pokemon_id])
 
-        if pokemon_to_be_evolved >= self.min_pokemon_to_be_evolved:
+        self._log_update_if_should(pokemon_to_be_evolved, self.min_pokemon_to_be_evolved)
+
+        has_minimum_to_evolve = pokemon_to_be_evolved >= self.min_pokemon_to_be_evolved
+        if has_minimum_to_evolve:
             if self.use_lucky_egg:
                 self._use_lucky_egg()
             cache = {}
@@ -75,11 +78,26 @@ class EvolvePokemon(BaseTask):
                 if pokemon.can_evolve_now():
                     self._execute_pokemon_evolve(pokemon, cache)
 
+    def _log_update_if_should(self, has, needs):
+        if self._should_log_update():
+            self._compute_next_log_update()
+            self.emit_event(
+                'pokemon_evolve_check',
+                formatted='Evolvable: {has}/{needs}',
+                data={'has': has, 'needs': needs}
+            )
+
+    def _compute_next_log_update(self):
+        self.next_log_update = time.time() + self.log_interval
+
+    def _should_log_update(self):
+        return time.time() >= self.next_log_update
+
     def _should_run(self):
         if not self.evolve_list or self.evolve_list[0] == 'none':
             return False
         return True
-    
+
     def _use_lucky_egg(self):
         using_lucky_egg = time.time() - self.start_time < 1800
         if using_lucky_egg:
@@ -148,7 +166,7 @@ class EvolvePokemon(BaseTask):
         if pokemon.name in cache:
             return False
 
-        response_dict = self.api.evolve_pokemon(pokemon_id=pokemon.unique_id)
+        response_dict = self.bot.api.evolve_pokemon(pokemon_id=pokemon.unique_id)
         if response_dict.get('responses', {}).get('EVOLVE_POKEMON', {}).get('result', 0) == 1:
             xp = response_dict.get("responses", {}).get("EVOLVE_POKEMON", {}).get("experience_awarded", 0)
             evolution = response_dict.get("responses", {}).get("EVOLVE_POKEMON", {}).get("evolved_pokemon_data", {})

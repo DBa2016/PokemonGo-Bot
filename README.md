@@ -1,6 +1,8 @@
 # PokemonGo-Bot
 [PokemonGo-Bot](https://github.com/PokemonGoF/PokemonGo-Bot) is a project created by the [PokemonGoF](https://github.com/PokemonGoF) team.
 
+## Is the bot working? [Yes, since this PR](https://github.com/PokemonGoF/PokemonGo-Bot/pull/5784)
+
 ## Table of Contents
 - [Installation](https://github.com/PokemonGoF/PokemonGo-Bot/blob/dev/docs/installation.md)
 - [Documentation](https://github.com/PokemonGoF/PokemonGo-Bot/blob/dev/docs/)
@@ -16,14 +18,18 @@ The project is currently setup in two main branches:
 - `dev` also known as `beta` - This is where the latest features are, but you may also experience some issues with stability/crashes.
 - `master` also known as `stable` - The bot 'should' be stable on this branch, and is generally well tested.
 
-## Support
-### Development Channel
-[![Join the chat at https://gitter.im/pikabot-org/Lobby](https://badges.gitter.im/pikabot-org/db.svg)](https://gitter.im/pikabot-org/Lobby?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+## Slack Channel
 
 ### Configuration issues/help
 If you need any help please don't create an issue as we have a great community on Slack. You can count on the community in [#help](https://pokemongo-bot.slack.com/messages/help/) channel.
  - [Click here to signup (first time only)](https://pokemongo-bot.herokuapp.com)
  - [Join here if you're already a member](https://pokemongo-bot.slack.com/messages/general/)
+
+### Development Channel 
+ - #dev channel in slack
+
+## Discord
+  - [Click here to join discord server](https://discord.gg/n3g5puF)
 
 ###[Bugs / Issues](https://github.com/PokemonGoF/PokemonGo-Bot/issues?q=is%3Aissue+sort%3Aupdated-desc)
 If you discover a bug in the bot, please [search our issue tracker](https://github.com/PokemonGoF/PokemonGo-Bot/issues?q=is%3Aissue+sort%3Aupdated-desc) first. If it hasn't been reported, please [create a new issue](https://github.com/PokemonGoF/PokemonGo-Bot/issues/new) and ensure you follow the template guide so that our team can assist you as quickly as possible.
@@ -56,10 +62,7 @@ If this is your first time making a PR or aren't sure of the standard practice o
 - [x] Incubate eggs
 - [x] Crowd Sourced Map Prototype
 - [ ] [Standalone Desktop Application] (https://github.com/PokemonGoF/PokemonGo-Bot-Desktop)
-- [ ] Use candy
-
-## Gym Battles
-[PokemonGo-Bot](https://github.com/PokemonGoF/PokemonGo-Bot) takes a strong stance against automating gym battles. Botting gyms will have a negative effect on most players and thus the game as a whole. We will thus never accept contributions or changes containing code specific for gym battles.
+- [x] Use candy
 
 ## Analytics
 [PokemonGo-Bot](https://github.com/PokemonGoF/PokemonGo-Bot) is very popular and has a vibrant community. Because of that, it has become very difficult for us to know how the bot is used and what errors people hit. By capturing small amounts of data, we can prioritize our work better such as fixing errors that happen to a large percentage of our user base, not just a vocal minority.
@@ -72,7 +75,7 @@ If you do not want any data to be gathered, you can turn off this feature by set
 
 ## Credits
 - [tejado](https://github.com/tejado) many thanks for the API
-- [U6 Group](http://pgoapi.com) for the U6
+- [pogodevorg](https://github.com/pogodevorg/pgoapi) Without keyphact's coordination, this would not gonna happan again.
 - [Mila432](https://github.com/Mila432/Pokemon_Go_API) for the login secrets
 - [elliottcarlson](https://github.com/elliottcarlson) for the Google Auth PR
 - [AeonLucid](https://github.com/AeonLucid/POGOProtos) for improved protos
@@ -93,9 +96,11 @@ If you do not want any data to be gathered, you can turn off this feature by set
  * 05-032
  * sinistance
  * CapCap
+ * YvesHenri
  * mzupan
  * gnekic(GeXx)
  * Shoh
+ * JSchwerberg
  * luizperes
  * brantje
  * VirtualSatai
@@ -157,6 +162,9 @@ If you do not want any data to be gathered, you can turn off this feature by set
  * rawgni
  * Breeze Ro
  * bruno-kenji
+ * Gobberwart
+ * javajohnHub
+ * kolinkorr839
 
 ## Disclaimer
 ©2016 Niantic, Inc. ©2016 Pokémon. ©1995–2016 Nintendo / Creatures Inc. / GAME FREAK inc. © 2016 Pokémon/Nintendo Pokémon and Pokémon character names are trademarks of Nintendo. The Google Maps Pin is a trademark of Google Inc. and the trade dress in the product design is a trademark of Google Inc. under license to The Pokémon Company. Other trademarks are the property of their respective owners.

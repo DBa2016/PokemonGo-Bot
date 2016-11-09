@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals
+from __future__ import absolute_import
 
 import datetime
 import json
@@ -19,27 +20,28 @@ from pgoapi import PGoApi
 from pgoapi.utilities import f2i, get_cell_ids
 from s2sphere import Cell, CellId, LatLng
 
-import cell_workers
-from base_task import BaseTask
-from plugin_loader import PluginLoader
-from api_wrapper import ApiWrapper
-from cell_workers.utils import distance
-from event_manager import EventManager
-from human_behaviour import sleep
-from item_list import Item
-from metrics import Metrics
-from sleep_schedule import SleepSchedule
+from . import cell_workers
+from .base_task import BaseTask
+from .plugin_loader import PluginLoader
+from .api_wrapper import ApiWrapper
+from .cell_workers.utils import distance
+from .event_manager import EventManager
+from .human_behaviour import sleep
+from .item_list import Item
+from .metrics import Metrics
+from .sleep_schedule import SleepSchedule
 from pokemongo_bot.event_handlers import SocketIoHandler, LoggingHandler, SocialHandler
 from pokemongo_bot.socketio_server.runner import SocketIoRunner
 from pokemongo_bot.websocket_remote_control import WebsocketRemoteControl
 from pokemongo_bot.base_dir import _base_dir
-from worker_result import WorkerResult
-from tree_config_builder import ConfigException, MismatchTaskApiVersion, TreeConfigBuilder
-from inventory import init_inventory, player
+from .worker_result import WorkerResult
+from .tree_config_builder import ConfigException
+from .tree_config_builder import MismatchTaskApiVersion
+from .tree_config_builder import TreeConfigBuilder
+from .inventory import init_inventory, player
 from sys import platform as _platform
 from pgoapi.protos.POGOProtos.Enums import BadgeType_pb2
 from pgoapi.exceptions import AuthException
-import struct
 
 
 class FileIOException(Exception):
@@ -115,11 +117,14 @@ class PokemonGoBot(object):
         self.heartbeat_counter = 0
         self.last_heartbeat = time.time()
         self.hb_locked = False # lock hb on snip
-        
+
         # Inventory refresh limiting
         self.inventory_refresh_threshold = 10
         self.inventory_refresh_counter = 0
         self.last_inventory_refresh = time.time()
+        
+        # Catch on/off
+        self.catch_disabled = False
 
         self.capture_locked = False  # lock catching while moving to VIP pokemon
 
@@ -156,15 +161,13 @@ class PokemonGoBot(object):
         debug = self.config.debug
 
         handlers.append(LoggingHandler(color, debug))
-
-        if self.config.enable_social:
-            handlers.append(SocialHandler(self))
+        handlers.append(SocialHandler(self))
 
         if self.config.websocket_server_url:
             if self.config.websocket_start_embedded_server:
                 self.sio_runner = SocketIoRunner(self.config.websocket_server_url)
                 self.sio_runner.start_listening_async()
-
+        
             websocket_handler = SocketIoHandler(
                 self,
                 self.config.websocket_server_url
@@ -211,6 +214,9 @@ class PokemonGoBot(object):
         self.event_manager.register_event('moving_to_destination')
         self.event_manager.register_event('arrived_at_destination')
         self.event_manager.register_event('staying_at_destination')
+        self.event_manager.register_event('buddy_pokemon', parameters=('pokemon', 'iv', 'cp'))
+        self.event_manager.register_event('buddy_reward', parameters=('pokemon', 'family', 'candy_earned', 'candy'))
+        self.event_manager.register_event('buddy_walked', parameters=('pokemon', 'distance_walked', 'distance_needed'))
 
         #  ignore candy above threshold
         self.event_manager.register_event(
@@ -471,8 +477,26 @@ class PokemonGoBot(object):
             )
         )
         self.event_manager.register_event(
+            'pokemon_vip_caught',
+            parameters=(
+                'pokemon',
+                'ncp', 'cp', 'iv', 'iv_display', 'exp',
+                'stardust',
+                'encounter_id',
+                'latitude',
+                'longitude',
+                'pokemon_id',
+                'daily_catch_limit',
+                'caught_last_24_hour',
+            )
+        )
+        self.event_manager.register_event(
             'pokemon_evolved',
             parameters=('pokemon', 'iv', 'cp', 'candy', 'xp')
+        )
+        self.event_manager.register_event(
+            'pokemon_evolve_check',
+            parameters=('has', 'needs')
         )
         self.event_manager.register_event(
             'pokemon_upgraded',
@@ -571,7 +595,7 @@ class PokemonGoBot(object):
         )
         self.event_manager.register_event(
             'pokemon_release',
-            parameters=('pokemon', 'iv', 'cp', 'ivcp', 'candy')
+            parameters=('pokemon', 'iv', 'cp', 'ivcp', 'candy', 'candy_type')
         )
         self.event_manager.register_event(
             'pokemon_keep',
@@ -686,6 +710,39 @@ class PokemonGoBot(object):
             'use_incense',
             parameters=('type', 'incense_count')
         )
+        # BuddyPokemon
+        self.event_manager.register_event(
+            'buddy_update',
+            parameters=('name')
+        )
+        self.event_manager.register_event(
+            'buddy_update_fail',
+            parameters=('name', 'error')
+        )
+        self.event_manager.register_event(
+            'buddy_candy_earned',
+            parameters=('candy', 'family', 'quantity', 'candy_earned', 'candy_limit')
+        )
+        self.event_manager.register_event('buddy_candy_fail')
+        self.event_manager.register_event(
+            'buddy_next_reward',
+            parameters=('name', 'km_walked', 'km_total')
+        )
+        self.event_manager.register_event('buddy_keep_active')
+        self.event_manager.register_event(
+            'buddy_not_available',
+            parameters=('name')
+        )
+
+        # Sniper
+        self.event_manager.register_event('sniper_log', parameters=('message', 'message'))
+        self.event_manager.register_event('sniper_error', parameters=('message', 'message'))
+        self.event_manager.register_event('sniper_teleporting', parameters=('latitude', 'longitude', 'name'))
+        
+        # Catch-limiter
+        self.event_manager.register_event('catch_limit_on')
+        self.event_manager.register_event('catch_limit_off')
+        
 
     def tick(self):
         self.health_record.heartbeat()
@@ -867,7 +924,8 @@ class PokemonGoBot(object):
                 self.api = ApiWrapper(config=self.config)
                 self.api.set_position(*position)
                 self.login()
-                self.api.activate_signature(self.get_encryption_lib())
+                self.api.set_signature_lib(self.get_encryption_lib())
+                self.api.set_hash_lib(self.get_hash_lib())
 
     def login(self):
         self.event_manager.emit(
@@ -921,12 +979,13 @@ class PokemonGoBot(object):
         if _platform == "Windows" or _platform == "win32":
             # Check if we are on 32 or 64 bit
             if sys.maxsize > 2**32:
-                file_name = 'encrypt_64.dll'
+                file_name = 'src/pgoapi/pgoapi/lib/encrypt64.dll'
             else:
-                file_name = 'encrypt.dll'
-        else:
-            file_name = 'encrypt.so'
-
+                file_name = 'src/pgoapi/pgoapi/lib/encrypt32.dll'
+        if _platform.lower() == "darwin":
+            file_name= 'src/pgoapi/pgoapi/lib/libencrypt-osx-64.so'
+        if _platform.lower() == "linux" or _platform.lower() == "linux2":
+            file_name = 'src/pgoapi/pgoapi/lib/libencrypt-linux-x86-64.so'
         if self.config.encrypt_location == '':
             path = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
         else:
@@ -935,6 +994,32 @@ class PokemonGoBot(object):
         full_path = path + '/'+ file_name
         if not os.path.isfile(full_path):
             self.logger.error(file_name + ' is not found! Please place it in the bots root directory or set encrypt_location in config.')
+            self.logger.info('Platform: '+ _platform + ' ' + file_name + ' directory: '+ path)
+            sys.exit(1)
+        else:
+            self.logger.info('Found '+ file_name +'! Platform: ' + _platform + ' ' + file_name + ' directory: ' + path)
+
+        return full_path
+
+    def get_hash_lib(self):
+        if _platform == "Windows" or _platform == "win32":
+            # Check if we are on 32 or 64 bit
+            if sys.maxsize > 2**32:
+                file_name = 'src/pgoapi/pgoapi/lib/niantichash64.dll'
+            else:
+                file_name = 'src/pgoapi/pgoapi/lib/niantichash32.dll'
+        if _platform.lower() == "darwin":
+            file_name= 'src/pgoapi/pgoapi/lib/libniantichash-osx-64.so'
+        if _platform.lower() == "linux" or _platform.lower() == "linux2":
+            file_name = 'src/pgoapi/pgoapi/lib/libniantichash-linux-x86-64.so'
+        if self.config.encrypt_location == '':
+            path = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
+        else:
+            path = self.config.encrypt_location
+
+        full_path = path + '/'+ file_name
+        if not os.path.isfile(full_path):
+            self.logger.error(file_name + ' is not found! Please place it in the bots root directory')
             self.logger.info('Platform: '+ _platform + ' ' + file_name + ' directory: '+ path)
             sys.exit(1)
         else:
@@ -952,7 +1037,9 @@ class PokemonGoBot(object):
         self.login()
         # chain subrequests (methods) into one RPC call
 
-        self.api.activate_signature(self.get_encryption_lib())
+        self.api.set_signature_lib(self.get_encryption_lib())
+        self.api.set_hash_lib(self.get_hash_lib())
+
         self.logger.info('')
         # send empty map_cells and then our position
         self.update_web_location()
@@ -1253,7 +1340,7 @@ class PokemonGoBot(object):
         # Check if the given location is already a coordinate.
         if ',' in location_name:
             possible_coordinates = re.findall(
-                "[-]?\d{1,3}[.]\d{3,7}", location_name
+                "[-]?\d{1,3}(?:[.]\d+)?", location_name
             )
             if len(possible_coordinates) >= 2:
                 # 2 matches, this must be a coordinate. We'll bypass the Google
@@ -1317,7 +1404,7 @@ class PokemonGoBot(object):
                 # store awarded_badges reponse to be used in a task or part of heartbeat
                 self._awarded_badges = responses['responses']['CHECK_AWARDED_BADGES']
 
-            if self._awarded_badges.has_key('awarded_badges'):
+            if 'awarded_badges' in self._awarded_badges:
                 i = 0
                 for badge in self._awarded_badges['awarded_badges']:
                     badgelevel = self._awarded_badges['awarded_badge_levels'][i]
@@ -1407,7 +1494,6 @@ class PokemonGoBot(object):
                     cached_recent_forts = json.load(f)
             except (IOError, ValueError) as e:
                 self.logger.info('[x] Error while opening cached forts: %s' % e)
-                pass
             except:
                 raise FileIOException("Unexpected error opening {}".cached_forts_path)
 
@@ -1446,4 +1532,4 @@ class PokemonGoBot(object):
             inventory.refresh_inventory()
             self.last_inventory_refresh = now
             self.inventory_refresh_counter += 1
-            
+

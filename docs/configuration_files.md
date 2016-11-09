@@ -28,7 +28,12 @@
     - [Settings Description](#settings-description)
     - [`flee_count` and `flee_duration`](#flee_count-and-flee_duration)
     - [Previous `catch_simulation` Behaviour](#previous-catch_simulation-behaviour)
+- [CatchLimiter Settings](#catchlimiter-settings)
 - [Sniping _(MoveToLocation)_](#sniping-_-movetolocation-_)
+    - [Description](#description)
+    - [Options](#options)
+        - [Example](#example)
+- [Sniping _(Sniper)_](#sniper)
     - [Description](#description)
     - [Options](#options)
         - [Example](#example)
@@ -50,6 +55,7 @@
 - [Telegram Task](#telegram-task)
 - [Discord Task](#discord-task)
 - [CompleteTutorial](#completetutorial)
+- [BuddyPokemon](#buddypokemon)
 
 #Configuration files
 
@@ -185,9 +191,14 @@ The behaviors of the bot are configured via the `tasks` key in the `config.json`
     * `changeball_wait_max`: 5 | Maximum time to wait when changing balls
     * `newtodex_wait_min`: 20 | Minimum time to wait if we caught a new type of pokemon
     * `newtodex_wait_max`: 39 | Maximum time to wait if we caught a new type of pokemon
+* Catch Limiter
+  * `enabled`: Default false | Enable/disable the task
+  * `min_balls`: Default 20 | Minimum balls on hand before catch tasks enabled
+  * `duration`: Default 15 | Length of time to disable catch tasks
 * EvolvePokemon
   * `enable`: Disable or enable this task.
   * `evolve_all`: Default `NONE` | Depreciated. Please use evolve_list and donot_evolve_list
+  * `log_interval`: `Default: 120`. Time (in seconds) to periodically print how far you are from having enough pokemon to evolve (more than `min_pokemon_to_be_evolved`)
   * `evolve_list`: Default `all` | Set to all, or specifiy different pokemon seperated by a comma
   * `donot_evolve_list`: Default `none` | Pokemon seperated by comma, will be ignored from evolve_list
   * `min_evolve_speed`: Default `25` | Minimum seconds to wait between each evolution 
@@ -202,6 +213,9 @@ The behaviors of the bot are configured via the `tasks` key in the `config.json`
   * `enable`: Disable or enable this task.
   * `spin_wait_min`: Default 3 | Minimum wait time after fort spin
   * `spin_wait_max`: Default 5 | Maximum wait time after fort spin
+  * `daily_spin_limit`: Default 2000 | Daily spin limit
+  * `min_interval`: Default 120 | When daily spin limit is reached, how often should the warning message be shown
+  * `exit_on_limit_reached`: Default `True` | Code will exits if daily_spin_limit is reached
 * HandleSoftBan
 * IncubateEggs
   * `enable`: Disable or enable this task.
@@ -361,17 +375,17 @@ If you want to configure a given task, you can pass values like this:
 ## Catch Configuration
 [[back to top](#table-of-contents)]
 
-Default configuration will capture all Pokémon.
+Default configuration will catch all Pokémon.
 
 ```"any": {"catch_above_cp": 0, "catch_above_iv": 0, "logic": "or"}```
 
 You can override the global configuration with Pokémon-specific options, such as:
 
-```"Pidgey": {"catch_above_cp": 0, "catch_above_iv": 0.8", "logic": "and"}``` to only capture Pidgey with a good roll.
+```"Pidgey": {"catch_above_cp": 0, "catch_above_iv": 0.8", "logic": "and"}``` to only catch Pidgey with a good roll.
 
-Additionally, you can specify always_capture and never_capture flags.
+Additionally, you can specify always_catch and never_catch flags.
 
-For example: ```"Pidgey": {"never_capture": true}``` will stop catching Pidgey entirely.
+For example: ```"Pidgey": {"never_catch": true}``` will stop catching Pidgey entirely.
 
 ## Release Configuration
 [[back to top](#table-of-contents)]
@@ -565,7 +579,7 @@ Key | Info
     "enabled": true,
     "dont_nickname_favorite": false,
     "good_attack_threshold": 0.7,
-    "nickname_template": "{iv_pct}-{iv_ads}"
+    "nickname_template": "{iv_pct}-{iv_ads}",
     "locale": "en"
   }
 }
@@ -647,6 +661,30 @@ If you want to make your bot behave as it did prior to the catch_simulation upda
 }
 ```
 
+## CatchLimiter Settings
+[[back to top](#table-of-contents)]
+
+These settings define thresholds and duration to disable all catching tasks for a specified duration when balls are low. This allows your bot to spend time moving/looting and recovering balls spent catching.
+
+## Default Settings
+
+```
+"enabled": false,
+"min_balls": 20,
+"duration": 15
+```
+
+### Settings Description
+[[back to top](#table-of-contents)]
+
+Setting | Description
+---- | ----
+`enabled` | Specify whether this task should run or not
+`min_balls` | Determine minimum ball level required for catching tasks to be enabled
+`duration` | How long to disable catching
+
+Catching will be disabled when balls on hand reaches/is below "min_balls" and will be re-enabled when "duration" is reached, or when balls on hand > min_balls (whichever is later)
+
 ## Sniping _(MoveToLocation)_
 [[back to top](#table-of-contents)]
 
@@ -720,6 +758,125 @@ This task will fetch current pokemon spawns from /raw_data of an PokemonGo-Map i
 }
 ```
 
+## Sniper
+[[back to top](#table-of-contents)]
+
+### Description
+[[back to top](#table-of-contents)]
+
+This task is an upgrade version of the MoveToMapPokemon task. It will fetch pokemon informations from any number of urls (sources), including PokemonGo-Map, or from the social feature. You can also use the old PokemonGo-Map project. For information on how to properly setup PokemonGo-Map have a look at the Github page of the project [here](https://github.com/PokemonGoMap/PokemonGo-Map). You can also use [this](https://github.com/YvesHenri/PogoLocationFeeder), which is an adapted version of the application that NecroBot used to snipe. There is an example config in `config/config.json.map.example`.
+
+### Options
+[[back to top](#table-of-contents)]
+
+* `enabled` - Defines whether the **WHOLE** task is enabled or not. Please bear in mind that even if the task is enabled, all or any of its sources can be disabled. (default: false)
+* `mode` - The mode on which the sniper will fetch the informations. (default: social)
+   - `social` - Information will come from the social network.
+   - `url` - Information will come from one or multiple urls.
+* `bullets` - Each bullet corresponds to an **ATTEMPT** of catching a pokemon. (default: 1)
+* `homing_shots` - This will ensure that each bullet **will catch** a target. If disabled, a target might not exist and thus it wont be caught. When enabled, this will jump to the next target (if any) and try again to catch it. This will be repeated untill you've spent all the bullets. (default: true)
+* `special_iv` - This will skip the catch list if the value is greater than or equal to the target's IV. This currently does not work with `social` mode and only works if the given `url` has this information. (default: 100)
+* `time_mask` - The time mask used (if `expiration.format` is a full date). The default mask is '%Y-%m-%d %H:%M:%S'.
+* `order` - The order on which you want to snipe. This can be one or multiple of the following values (default: [`missing`, `vip`, `priority`]):
+   - `iv` - Order by IV, if any. See `special_iv`.
+   - `vip` - Order by VIP.
+   - `missing` - Order by the target's pokedex missing status.
+   - `priority` - Order by the priority you have specified in the `catch` list.
+   - `expiration_timestamp_ms` - Order by the expiration time.
+* `sources` - This should map a JSON param values from a given url. For example: different urls will provide different JSON response formats. **PLEASE ADVISED THAT, IF A PARAM DOES NOT EXIST (OR CONTAINS WRONG DATA LIKE PokeSnipers's ID PARAM), DO NOT SPECIFY IT!** Pokesnipers is a special case where it does provide IDs, however theyre wrong. Map bellow their corresponding values:
+* `sources.key` - The JSON key that contains the results, eg.: For a JSON response such as `{ "SomeWeirdoName": [{"id": 123, ...}, {"id": 143, ...}]}`, `SomeWeirdoName` would be the key name.
+* `sources.url` - The URL that will provide the JSON.
+* `sources.enabled` - Defines whether this source is enabled or not. This has nothing to do with the task's `enabled`.
+* `sources.timeout` - How long to wait for this source to respond before giving up (default 5 seconds)
+* `mappings`- Map JSON parameters to required values.
+   - `iv` - The JSON param that corresponds to the pokemon IV. Only certain sources provide this info. **NOTE:** `social` mode does not provide this info!
+   - `id` - The JSON param that corresponds to the pokemon ID. (required)
+   - `name` - The JSON param that corresponds to the pokemon name. (required)
+   - `latitude` - The JSON param that corresponds to the latitude. It will work if a single param is used for both `latitude` and `longitude`, eg.: "coords": "1.2345, 6.7890" (required)
+   - `longitude` - The JSON param that corresponds to the longitude. It will work if a single param is used for both `latitude` and `longitude`, eg.: "coords": "1.2345, 6.7890" (required)
+   - `encounter` - The JSON param that corresponds to encounter ID. This value is very unlikely to be provided by third-party urls. However, it is safely updated internally.
+   - `spawnpoint` - The JSON param that corresponds to spawnpoint ID. This value is very unlikely to be provided by third-party urls. However, it is safely updated internally.
+   - `expiration` - The JSON param that correspond to the pokemon expiration time.
+   - `expiration.format` - The time type. It can be either seconds, milliseconds or utc
+* `catch` - A dictionary of pokemon to catch with an assigned priority (higher => better).
+
+#### Example
+[[back to top](#table-of-contents)]
+
+```
+{
+    "type": "Sniper",
+    "config": {
+        "enabled": true,
+        "mode": "url",
+        "bullets": 1,
+        "homing_shots": true,
+        "special_iv": 100,
+        "order": ["missing", "iv", "priority", "vip"],
+        "sources": [
+            {
+                "url": "http://pokesnipers.com/api/v1/pokemon.json",
+                "enabled": true,
+                "timeout": 15,
+                "key": "results",
+                "mappings": {
+                    "iv": { "param": "iv" },
+                    "name": { "param": "name" },
+                    "latitude": { "param": "coords" },
+                    "longitude": { "param": "coords" },
+                    "expiration": { "param": "until", "format": "utc" }
+                }
+            },
+            {
+                "url": "http://localhost:5000/raw_data",
+                "key": "pokemons",
+                "enabled": true,
+                "timeout": 5,
+                "mappings": {
+                    "id": { "param": "pokemon_id" },
+                    "name": { "param": "pokemon_name" },
+                    "latitude": { "param": "latitude" },
+                    "longitude": { "param": "longitude" },
+                    "expiration": { "param": "disappear_time", "format": "milliseconds" }
+                }
+            },
+            {
+                "url": "https://pokewatchers.com/grab/",
+                "enabled": true,
+                "timeout": 15,
+                "mappings": {
+                    "iv": { "param": "iv" },
+                    "id": { "param": "pid" },
+                    "name": { "param": "pokemon" },
+                    "latitude": { "param": "cords" },
+                    "longitude": { "param": "cords" },
+                    "expiration": { "param": "timeend", "format": "seconds" }
+                }
+            }
+        ],
+        "catch": {
+            "Snorlax": 1000,
+            "Dragonite": 1000,
+            "Growlithe": 600,
+            "Clefairy": 500,
+            "Kabuto": 500,
+            "Dratini": 500,
+            "Dragonair": 500,
+            "Mr. Mime": 500,
+            "Magmar": 500,
+            "Electabuzz": 500,
+            "Tangela": 500,
+            "Tauros": 500,
+            "Primeape": 500,
+            "Chansey": 500,
+            "Pidgey": 100,
+            "Caterpie": 100,
+            "Weedle": 100
+        }
+    }
+  }
+```
+
 ## FollowPath Settings
 [[back to top](#table-of-contents)]
 
@@ -728,8 +885,8 @@ This task will fetch current pokemon spawns from /raw_data of an PokemonGo-Map i
 
 Walk to the specified locations loaded from .gpx or .json file. It is highly recommended to use website such as [GPSies](http://www.gpsies.com) which allow you to export your created track in JSON file. Note that you'll have to first convert its JSON file into the format that the bot can understand. See [Example of pier39.json] below for the content. I had created a simple python script to do the conversion.
 
-The json file can contain for each point an optional `loiter` field. This
-indicated the number of seconds the bot should loiter after reaching the point.
+The json file can contain for each point an optional `wander` field. This
+indicated the number of seconds the bot should wander after reaching the point.
 During this time, the next Task in the configuration file is executed, e.g. a
 MoveToFort task. This allows the bot to walk around the waypoint looking for
 forts for a limited time.
@@ -748,9 +905,9 @@ forts for a limited time.
 ### Notice
 If you use the `single` `path_mode` without e.g. a `MoveToFort` task, your bot 
 with /not move at all/ when the path is finished. Similarly, if you use the
-`loiter` option in your json path file without a following `MoveToFort` or
-similar task, your bot will not move during the loitering period. Please
-make sure, when you use `single` mode or the `loiter` option, that another
+`wander` option in your json path file without a following `MoveToFort` or
+similar task, your bot will not move during the wandering period. Please
+make sure, when you use `single` mode or the `wander` option, that another
 move-type task follows the `FollowPath` task in your `config.json`.
 
 ### Sample Configuration
@@ -1115,11 +1272,55 @@ Available `team` :
 [[back to top](#table-of-contents)]
 ```json
 {
-	"type": "CompleteTutorial",
-	"config": {
-	"enabled": true,
-		"nickname": "PokemonGoF",
-		"team": 2
-	}
+  "type": "CompleteTutorial",
+  "config": {
+  "enabled": true,
+    "nickname": "PokemonGoF",
+    "team": 2
+  }
+}
+```
+
+## BuddyPokemon
+[[back to top](#table-of-contents)]
+
+### Description
+[[back to top](#table-of-contents)]
+
+Makes use of the Pokemon Buddy system.
+It's able to switch the buddy automatically given an list of pokemon that should be using this feature.
+Periodically logs the status of the buddy walking.
+After setting a buddy it's not possible to remove it, only change it. So if a buddy is already selected and no buddy list is given, it will still run with the buddy already selected.
+
+### Options
+[[back to top](#table-of-contents)]
+
+* `buddy_list`: `Default: []`. List of pokemon names that will be used as buddy. If '[]' or 'none', will not use or change buddy.
+* `best_in_family`: `Default: True`. If True, picks best Pokemon in the family (sorted by cp).
+* `candy_limit`: `Default: 0`. Set the candy limit to be rewarded per buddy, when reaching this limit the bot will change the buddy to the next in the list. When candy_limit = 0 or only one buddy in list, it has no limit and never changes buddy.
+* `candy_limit_absolute`: `Default: 0`. Set the absolute candy limit to be rewarded per buddy, when reaching this limit the bot will change the buddy to the next in the list. When candy_limit_absolute = 0 or only one buddy in list, it has no limit and never changes buddy. Use this to stop collecting candy when a candy threshold for your buddy's pokemon family is reached (e.g. 50 for evolving).
+* `force_first_change`: `Default: False`. If True, will try to change buddy at bot start according to the buddy list. If False, will use the buddy already set until candy_limit is reached and then use the buddy list.
+* `buddy_change_wait_min`: `Default: 3`. Minimum time (in seconds) that the buddy change takes.
+* `buddy_change_wait_max`: `Default: 5`. Maximum time (in seconds) that the buddy change takes.
+* `min_interval`: `Default: 120`. Time (in seconds) to periodically log the buddy walk status.
+
+### Sample configuration
+[[back to top](#table-of-contents)]
+```json
+{
+  "type": "BuddyPokemon",
+    "config": {
+      "enabled": true,
+        "buddy_list": "dratini, magikarp",
+        "best_in_family": true,
+        "// candy_limit = 0 means no limit, so it will never change current buddy": {},
+        "candy_limit": 0,
+        "candy_limit_absolute": 0,
+        "// force_first_change = true will always change buddy at start removing current one": {},
+        "force_first_change": false,
+        "buddy_change_wait_min": 3,
+        "buddy_change_wait_max": 5,
+        "min_interval": 120
+  }
 }
 ```

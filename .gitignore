@@ -23,6 +23,8 @@ var/
 *.egg-info/
 .installed.cfg
 *.egg
+*.orig
+*.bak
 
 # PyInstaller
 #  Usually these files are written by a python script from a template
@@ -145,4 +147,8 @@ pip-selfcheck.json
 # Mac Gargage
 .DS_Store
 data/mqtt_client_id
-Encrypt_64.dll
+
+# pgoapi files
+encrypt.so
+encrypt.dll
+encrypt_64.dll
